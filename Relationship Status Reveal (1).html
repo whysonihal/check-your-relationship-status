@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Relationship Status Reveal</title>
+<style>
+  :root { box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  *, *::before, *::after { box-sizing: inherit; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: #FFFFFF; color: #000000;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    text-align: center; padding: 24px;
+    transition: background 0.4s ease, color 0.4s ease;
+  }
+  body.dark { background: #000000; color: #FFFFFF; }
+  .screen { display: none; max-width: 640px; width: 100%; }
+  .screen.active { display: block; }
+  h1 { font-size: clamp(1.6rem, 6vw, 2.8rem); line-height: 1.2; margin: 0 0 24px; font-weight: 700; }
+  input {
+    display: block; width: 100%; max-width: 320px; margin: 0 auto 18px; padding: 14px 16px;
+    font-size: 1.05rem; text-align: center; border: 2px solid #000; border-radius: 14px; color: #000; background: #fff;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12); outline: none;
+  }
+  button {
+    background: #000; color: #fff; border: 0; border-radius: 14px;
+    padding: 16px 34px; font-size: 1.1rem; font-weight: 600; cursor: pointer;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.25); transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  button:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,0.3); }
+  button:active { transform: translateY(0); }
+  .calc { font-size: clamp(1.3rem, 5vw, 2.2rem); animation: pulse 1.6s ease-in-out infinite; min-height: 3em; }
+  @keyframes pulse { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+  .emoji { font-size: clamp(3rem, 14vw, 5rem); margin-bottom: 8px; animation: pop 0.6s cubic-bezier(.2,1.6,.4,1); }
+  .result h2 { font-size: clamp(2.2rem, 11vw, 4.6rem); line-height: 1.05; margin: 0 0 14px; letter-spacing: 0.02em; animation: pop 0.6s cubic-bezier(.2,1.6,.4,1); }
+  .result p { font-size: clamp(1.05rem, 4vw, 1.5rem); margin: 0 0 28px; opacity: 0.85; }
+  .result button { background: #fff; color: #000; box-shadow: 0 6px 18px rgba(255,255,255,0.15); }
+  @keyframes pop { from { transform: scale(0.2); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+</style>
+</head>
+<body>
+  <div class="screen active" id="start">
+    <h1>Click to reveal your relationship status</h1>
+    <input id="name" type="text" placeholder="Enter your name" maxlength="24" autocomplete="off">
+    <button id="reveal">Reveal my status</button>
+  </div>
+
+  <div class="screen" id="calc"><div class="calc" id="calcText">Calculating your relationship status...</div></div>
+
+  <div class="screen result" id="result">
+    <div class="emoji" id="emoji"></div>
+    <h2 id="title"></h2>
+    <p id="sub"></p>
+    <button id="again">Try again</button>
+  </div>
+
+<script>
+  // Every outcome has an equal chance. {n} = the person’s name.
+  const OUTCOMES = [
+    { e: "💀", t: "SINGLE", s: "Congratulations, {n}. Your phone has been telling you this for years.", w: 5 },
+    { e: "📱", t: "TAKEN", s: "…by your phone, {n}. Screen time says 9 hours a day. It’s serious.", w: 3 },
+    { e: "🛏️", t: "MARRIED TO YOUR BED", s: "{n}, you two are inseparable. Nobody has ever seen you leave before noon.", w: 3 },
+    { e: "🌀", t: "IT’S COMPLICATED", s: "Even the algorithm gave up, {n}. Please see a group chat for help.", w: 3 },
+    { e: "👀", t: "SITUATIONSHIP", s: "No label, all feelings, zero clarity. Classic {n}.", w: 3 },
+    { e: "💬", t: "WAITING FOR A TEXT BACK", s: "It said “seen” 3 days ago, {n}. Let it go.", w: 3 },
+    { e: "🍕", t: "DATING PIZZA", s: "{n}, it’s a healthy relationship. It always shows up and never judges.", w: 2 },
+    { e: "🚩", t: "EMOTIONALLY UNAVAILABLE", s: "Currently out of office, {n}. Leave a message after the tone.", w: 2 },
+    { e: "🕵️", t: "SOMEONE HAS A CRUSH ON YOU", s: "Plot twist, {n}: someone you know is secretly obsessed with you.", w: 1 },
+    { e: "⏳", t: "SOULMATE LOADING… 99%", s: "Stuck at 99% since 2019, {n}. Try restarting your personality.", w: 1 },
+    { e: "👑", t: "TOO ICONIC TO BE TAKEN", s: "{n}, the universe says you’re the main character. Singles only.", w: 1 }
+  ];
+  const STEPS = ["Calculating your relationship status...", "Scanning your search history...", "Consulting your ex...", "Reading your last 50 texts...", "Almost done... brace yourself."];
+
+  const body = document.body;
+  const $ = id => document.getElementById(id);
+  const screens = { start: $("start"), calc: $("calc"), result: $("result") };
+  function show(name) {
+    Object.values(screens).forEach(s => s.classList.remove("active"));
+    screens[name].classList.add("active");
+  }
+
+  // Every click picks a fresh random result.
+  function seededRandom(str) {
+    let h = 2166136261;
+    for (const c of str.toLowerCase()) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); }
+    h = Math.imul(h ^ (h >>> 15), 2246822507) >>> 0;
+    return h / 4294967296;
+  }
+  function pick(name) {
+    const r = Math.random();
+    return OUTCOMES[Math.floor(r * OUTCOMES.length)];
+  }
+
+  let timers = [];
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+
+  $("reveal").addEventListener("click", () => {
+    const name = $("name").value.trim();
+    body.classList.add("dark");
+    show("calc");
+    $("calcText").textContent = STEPS[0];
+    STEPS.slice(1).forEach((s, i) => timers.push(setTimeout(() => { $("calcText").textContent = s; }, 1400 * (i + 1))));
+    timers.push(setTimeout(() => {
+      const o = pick(name);
+      $("emoji").textContent = o.e;
+      $("title").textContent = o.t;
+      $("sub").textContent = o.s.replace("{n}", name || "friend");
+      show("result");
+    }, 1400 * STEPS.length));
+  });
+
+  $("again").addEventListener("click", () => {
+    clearTimers();
+    body.classList.remove("dark");
+    show("start");
+  });
+</script>
+</body>
+</html>
