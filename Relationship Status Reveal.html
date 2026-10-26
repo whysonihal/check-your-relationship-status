@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Relationship Status Reveal</title>
+<style>
+  :root { box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  *, *::before, *::after { box-sizing: inherit; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: #FFFFFF; color: #000000;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    transition: background 0.15s ease, color 0.15s ease; overflow: hidden;
+  }
+  body.dark { background: #000000; color: #FFFFFF; }
+  .screen { display: none; padding: 24px; max-width: 760px; width: 100%; }
+  .screen.active { display: block; }
+  h1 { font-size: clamp(1.6rem, 5vw, 2.8rem); font-weight: 700; margin: 0 0 32px; line-height: 1.2; letter-spacing: -0.02em; }
+  button {
+    background: #000; color: #fff; border: 0; border-radius: 14px;
+    padding: 16px 36px; font-size: 1.1rem; font-weight: 600; cursor: pointer;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.22); transition: transform 0.15s, box-shadow 0.15s;
+  }
+  button:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,0.28); }
+  button:active { transform: translateY(0); }
+  #calc p { font-size: clamp(1.2rem, 4.5vw, 2rem); margin: 0; animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 0.25; } 50% { opacity: 1; } }
+  #result .line { font-size: clamp(1.1rem, 4vw, 1.8rem); opacity: 0; margin: 0 0 18px; transition: opacity 0.8s; }
+  #result .line.show { opacity: 1; }
+  #result .big {
+    font-size: clamp(2.2rem, 10vw, 5.5rem); font-weight: 900; letter-spacing: -0.03em;
+    line-height: 1.05; min-height: 1.2em; color: #888; overflow-wrap: anywhere;
+  }
+  #result .big.rolling { opacity: 1; filter: blur(0.6px); }
+  #result .big.land { animation: shake 0.5s 2; filter: none; }
+  @keyframes shake { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-12px) rotate(-1deg); } 40% { transform: translateX(12px) rotate(1deg); } 60% { transform: translateX(-8px); } 80% { transform: translateX(8px); } }
+  #again { background: #fff; color: #000; opacity: 0; transition: opacity 0.8s; pointer-events: none; margin-top: 12px; }
+  #again.show { opacity: 1; pointer-events: auto; }
+</style>
+</head>
+<body>
+
+<main id="start" class="screen active">
+  <h1>Click to reveal your relationship status</h1>
+  <button id="reveal">Reveal my status</button>
+</main>
+
+<section id="calc" class="screen"><p>Calculating your relationship status...</p></section>
+
+<section id="result" class="screen">
+  <p class="line" id="l1">Analysis complete.</p>
+  <p class="line" id="l2">Your status is…</p>
+  <p class="line big" id="big">&nbsp;</p>
+  <p class="line" id="l3"></p>
+  <button id="again">Try again (it won’t help)</button>
+</section>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const screens = ['start', 'calc', 'result'];
+  let timers = [];
+  const later = (fn, ms) => { const t = setTimeout(fn, ms); timers.push(t); return t; };
+
+  // weights are percentages and add up to 100
+  const results = [
+    { text: 'SINGLE 💀',          color: '#FF2D2D', weight: 55,   roast: 'Even the algorithm felt bad. Please drink some water and text your mom.' },
+    { text: 'DICORD GOONER',      color: '#FF4FA3', weight: 43.9, roast: 'Your only relationship is with a server called “gooner-hq”. Please touch grass.' },
+    { text: 'HAPPY RELATIONSHIP', color: '#2ECC71', weight: 1,    roast: 'A 1% chance! Screenshot this. Nobody will believe you.' },
+    { text: 'COOL SINGLE 😎',      color: '#FFD700', weight: 0.1,  roast: 'A 0.1% legendary pull. You’re single by choice, and honestly it shows.' }
+  ];
+
+  function pick() {
+    let roll = Math.random() * 100, acc = 0;
+    for (const r of results) { acc += r.weight; if (roll < acc) return r; }
+    return results[0];
+  }
+
+  function show(name) { screens.forEach(s => $(s).classList.toggle('active', s === name)); }
+
+  function reset() {
+    timers.forEach(clearTimeout); timers = [];
+    ['l1','l2','l3','again'].forEach(id => $(id).classList.remove('show'));
+    $('big').classList.remove('show', 'rolling', 'land');
+    $('big').innerHTML = '&nbsp;';
+    document.body.classList.remove('dark');
+    show('start');
+  }
+
+  // slot-machine roll: cycles through every result, slowing down, then lands
+  function roll(final, done) {
+    const big = $('big');
+    big.classList.add('show', 'rolling');
+    let delay = 60, i = 0, elapsed = 0;
+    (function step() {
+      const r = elapsed > 2600 ? final : results[i++ % results.length];
+      big.textContent = r.text;
+      big.style.color = r.color;
+      if (elapsed > 2600) {
+        big.classList.remove('rolling');
+        big.classList.add('land');
+        return done();
+      }
+      elapsed += delay;
+      delay = Math.min(delay * 1.12, 420);
+      later(step, delay);
+    })();
+  }
+
+  $('reveal').addEventListener('click', () => {
+    document.body.classList.add('dark');
+    show('calc');
+    const r = pick();
+    $('l3').textContent = r.roast;
+    later(() => {
+      show('result');
+      later(() => $('l1').classList.add('show'), 200);
+      later(() => $('l2').classList.add('show'), 1400);
+      later(() => roll(r, () => {
+        later(() => $('l3').classList.add('show'), 700);
+        later(() => $('again').classList.add('show'), 2200);
+      }), 2800);
+    }, 4500);
+  });
+
+  $('again').addEventListener('click', reset);
+</script>
+</body>
+</html>
